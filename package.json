@@ -5,6 +5,7 @@
   "scripts": {
     "version": "node generate-version.js",
     "predeploy": "npm run version",
+    "preemulators": "npm run version",
     "emulators": "firebase emulators:start --only hosting,functions",
     "test": "firebase emulators:exec --only hosting,functions 'playwright test'",
     "test:manual": "playwright test",
