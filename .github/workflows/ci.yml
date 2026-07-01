@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  web-unit:
+    name: Web unit tests (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run vitest suite
+        run: npx vitest run
+
+  functions-unit:
+    name: Cloud Functions unit tests (jest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      # functions/package-lock.json is currently out of sync with
+      # functions/package.json, so `npm ci` fails. Use `npm install` until the
+      # lockfile is regenerated.
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run jest suite
+        run: npm test
