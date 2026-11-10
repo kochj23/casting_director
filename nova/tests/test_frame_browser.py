@@ -31,8 +31,13 @@ def test_full_game_in_the_browser_with_no_firebase(server):
         page.wait_for_selector("#cast-info-0:not(:empty)", timeout=15000)
         for i in range(1, 4):
             page.check(f"#no-name-{i}")
+        assert "ODDS THIS CASTING WORKS" in page.inner_text("#advice-0")        # the advisors weighed in
         page.click("#make-movie")
+        page.wait_for_selector("#studio-crisis", timeout=15000)                 # a crisis lands mid-shoot
+        page.locator("#studio-crisis button").first.click()
         page.wait_for_selector("#screen4.active", timeout=60000)
+        extras = page.inner_text("#studio-premiere")
+        assert "ON SET:" in extras and "ACHIEVEMENT UNLOCKED: First Picture" in extras
         score = page.inner_text("#overall-score")
         browser.close()
     assert any(c.isdigit() for c in score), score

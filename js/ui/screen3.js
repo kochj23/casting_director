@@ -12,6 +12,7 @@ import { showModal } from './modalManager.js';
 import { handleCastActor, castNoNameActor, clearCast, updateCastInfoDisplay, updateSpentBudgetDisplay, calculateSpentBudget, allRolesCast, isOverBudget } from '../game/castingLogic.js';
 import { populateScreen4 } from './screen4.js';
 import { refreshRecentMovies } from './screen1.js';
+import { showAdvice, runProductionCrisis, showPremiereExtras } from './studio.js';
 
 /**
  * Populate Screen 3 with character cards
@@ -59,15 +60,21 @@ async function handleCharacterListClick(event) {
         if (castData) {
             updateCastInfoDisplay(index, castData);
             updateSpentBudgetDisplay();
+            showAdvice(index, castData, calculateSpentBudget() - (castData.fee || 0), () => recast(index));
         }
     }
 
     if (event.target.classList.contains('recast-button')) {
-        const index = parseInt(event.target.dataset.index);
-        clearCast(index);
-        updateCastInfoDisplay(index, null);
-        updateSpentBudgetDisplay();
+        recast(parseInt(event.target.dataset.index));
     }
+}
+
+function recast(index) {
+    clearCast(index);
+    updateCastInfoDisplay(index, null);
+    updateSpentBudgetDisplay();
+    const advice = document.getElementById(`advice-${index}`);
+    if (advice) advice.textContent = '';
 }
 
 function handleNoNameCheckbox(event) {
@@ -103,6 +110,10 @@ async function handleMakeMovie() {
     }
 
     const state = getState();
+
+    // Nova edition: a crisis lands mid-shoot before the cameras roll on the results
+    const crisisCast = state.castList.map((c, i) => `${state.bookInfo.characters[i]?.name}: ${c.actor}`).join("\n");
+    await runProductionCrisis(crisisCast);
 
     // Show Screen 3.5 (Movie Production)
     showScreen('screen3_5');
@@ -178,6 +189,7 @@ async function handleMakeMovie() {
                 setTimeout(() => {
                     loadingOverlay.classList.remove('active');
                     populateScreen4(apiResults);
+                    showPremiereExtras(apiResults);
                     showScreen('screen4');
                     saveMovie(apiResults).then(() => refreshRecentMovies()).catch(err => console.warn("Could not save:", err));
                 }, 500);

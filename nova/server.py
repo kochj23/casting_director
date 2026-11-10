@@ -26,7 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import ai, keychain, prompts, rules
+from . import ai, keychain, prompts, rules, studio
 from .store import GameStore, PlayLog
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -40,12 +40,14 @@ ROLES = {
     "analyst": "Book analyst (reads the book, sets the budget and studio)",
     "agent": "Talent agents (quote actor fees)",
     "critics": "Critics and box office (reviews, awards, the score)",
+    "advisors": "Studio advisors' lines on each casting (stances and odds are house rules; rules = instant)",
 }
 # Measured 2026-11-10 on Project Hail Mary: Claude (CLI, flat-rate) names the real cast in ~70 s; local qwen3:30b-a3b
 # answers in ~18 s but invents characters, so it gets the fast, forgiving jobs (fees, reviews).
 DEFAULT_BRAINS = {"analyst": {"backend": "claude-cli", "model": "sonnet"},
                   "agent": {"backend": "ollama", "model": "qwen3:30b-a3b"},
-                  "critics": {"backend": "ollama", "model": "qwen3:30b-a3b"}}
+                  "critics": {"backend": "ollama", "model": "qwen3:30b-a3b"},
+                  "advisors": {"backend": "rules", "model": ""}}
 # Austin's artwork is deployed on his site but not committed to his repo. It is fetched from there once, cached
 # outside git (never redistributed from this fork), and served locally.
 ART_ORIGIN = "https://casting-director-1990.web.app"
@@ -63,6 +65,11 @@ class Game:
         self.store = store
         self.play = PlayLog(store, PLAYER)
         self.lock = threading.Lock()
+        self.reset_production()
+
+    def reset_production(self):
+        """Per-picture studio state (phase 2): overrules of the advisors and the production crisis."""
+        self.overrules, self.crisis, self.production = 0, None, None
 
     # -- brains -----------------------------------------------------------------------------------------------
     def brains(self) -> dict:
@@ -94,6 +101,7 @@ class Game:
             if self.play.id:
                 self.play.end("abandoned")
             self.play.start(book=book[:300], author=author[:200])
+            self.reset_production()
         key = f"{book.strip().lower()}|{author.strip().lower()}"
         cached = self.store.cache_get("book_cache", key)
         if cached:
@@ -123,21 +131,72 @@ class Game:
         self.play.event("quote", actor=actor[:120], fee=data["fee"], source=meta["backend"])
         return dict(data, _source=meta["backend"])
 
+    # -- the studio (phase 2) --------------------------------------------------------------------------------------
+    def advise(self, d: dict) -> dict:
+        advice = studio.advise(d)
+        if self.brains()["advisors"]["backend"] != "rules":
+            lines, _ = self.ask("advisors", studio.ADVISOR_SYSTEM, studio.advisor_query(d, advice),
+                                studio.ADVISOR_SCHEMA, timeout=45)
+            advice = studio.with_ai_lines(advice, lines)
+        self.play.event("advice", character=str(d.get("character"))[:120], actor=str(d.get("actorName"))[:120],
+                        odds=advice["odds"], stances={a["id"]: a["stance"] for a in advice["advisors"]})
+        return advice
+
+    def overrule(self, d: dict) -> dict:
+        with self.lock:
+            self.overrules += 1
+        self.play.event("overrule", character=str(d.get("character"))[:120], actor=str(d.get("actorName"))[:120],
+                        opposed=int(d.get("opposed") or 0))
+        return {"overrules": self.overrules}
+
+    def production_crisis(self, d: dict) -> dict:
+        self.crisis = studio.production_crisis(d)
+        self.play.event("crisis", crisis=self.crisis["id"])
+        return self.crisis
+
+    def choose(self, d: dict) -> dict:
+        if not self.crisis or self.crisis["id"] != d.get("crisis"):
+            raise ValueError("no such crisis on this picture")
+        res = studio.resolve_crisis(self.crisis["id"], str(d.get("option")), d.get("movieBudget"))
+        if not res:
+            raise ValueError("no such option")
+        self.production = res
+        self.play.event("crisis_choice", crisis=self.crisis["id"], choice=res["choice"], cost=res["cost"])
+        return {k: v for k, v in res.items() if k != "score_delta"}      # the critics' verdict stays a surprise
+
     def movie_results(self, d: dict) -> dict:
-        data, meta = self.ask("critics", prompts.RESULTS_SYSTEM, prompts.results_query(d), prompts.RESULTS_SCHEMA,
-                              timeout=240)
+        d = dict(d, overrules=self.overrules, production=self.production)
+        query = prompts.results_query(d)
+        if self.production:
+            query += (f"\n                Production: {self.production['crisis']} — the director chose to "
+                      f"{self.production['choice'].lower()} (cost ${self.production['cost']:,.0f}). "
+                      f"What happened: {self.production['note']}")
+        if self.overrules:
+            query += f"\n                The producer overruled the studio's advisors {self.overrules} time(s)."
+        data, meta = self.ask("critics", prompts.RESULTS_SYSTEM, query, prompts.RESULTS_SCHEMA, timeout=240)
         if data is None:
             data = rules.movie_results(d)
         data = clamp_results(data)
         r = random.Random()
         for k in ("imdbUsername", "letterboxdUsername", "rtUsername"):
             data[k] = r.choice(prompts.USERNAMES_90S)
+        delta = int((self.production or {}).get("score_delta") or 0)
+        if delta:
+            data["overallGameScore"] = max(0, min(100, data["overallGameScore"] + delta))
+            data["scoreDescriptor"] = rules.descriptor(data["overallGameScore"])
+        if self.production:
+            data["production"] = {k: v for k, v in self.production.items() if k != "score_delta"}
+        new = [k for k in studio.earned(d, data) if self.store.unlock(PLAYER, k)]
+        data["_achievements"] = [{"key": k, "name": studio.ACHIEVEMENTS[k][0], "description": studio.ACHIEVEMENTS[k][1]}
+                                 for k in new]
         data["_source"], data["_model"] = meta["backend"], meta.get("model")
         self.play.event("released", cast=str(d.get("castDetails") or "")[:2000], score=data["overallGameScore"],
                         box_office=data["boxOffice"], source=meta["backend"])
         with self.lock:
             self.play.end("released", data["overallGameScore"], book=str(d.get("bookName") or "")[:300],
-                          verdict=data["scoreDescriptor"])
+                          verdict=data["scoreDescriptor"], overrules=self.overrules,
+                          crisis=(self.production or {}).get("crisis"))
+            self.reset_production()
         return data
 
 
@@ -304,7 +363,9 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/leaderboard":
             return self._json(200, {"entries": g.store.leaderboard(20)})
         if p == "/api/achievements":
-            return self._json(200, {"unlocked": g.store.achievements(PLAYER)})
+            return self._json(200, {"unlocked": g.store.achievements(PLAYER),
+                                    "all": [{"key": k, "name": n, "description": t}
+                                            for k, (n, t) in studio.ACHIEVEMENTS.items()]})
         if p == "/api/settings":
             ov = g.overrides()
             return self._json(200, {
@@ -360,6 +421,17 @@ class Handler(BaseHTTPRequestHandler):
                 for k in ("bookName", "bookPopularity", "castDetails"):
                     _str(body, k, 8000)
                 return self._json(200, g.movie_results(body))
+            if p == "/api/advise":
+                for k in ("character", "actorName"):
+                    _str(body, k, 300)
+                return self._json(200, g.advise(body))
+            if p == "/api/overrule":
+                return self._json(200, g.overrule(body))
+            if p == "/api/production/crisis":
+                _str(body, "bookName", 300)
+                return self._json(200, g.production_crisis(body))
+            if p == "/api/production/choose":
+                return self._json(200, g.choose(body))
             if p == "/api/movies":
                 mid = g.store.save_movie(PLAYER, body)
                 return self._json(200, {"id": mid})

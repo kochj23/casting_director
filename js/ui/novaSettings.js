@@ -6,7 +6,7 @@
 
 import { novaFetch } from '../services/novaService.js';
 
-const ROLE_NAMES = { analyst: 'STUDIO ANALYST', agent: "ACTORS' AGENT", critics: 'THE CRITICS' };
+const ROLE_NAMES = { analyst: 'STUDIO ANALYST', agent: "ACTORS' AGENT", critics: 'THE CRITICS', advisors: 'STUDIO ADVISORS' };
 
 /** Text-only element helper: nothing from the server is ever written as HTML. */
 function el(tag, attrs = {}, ...kids) {

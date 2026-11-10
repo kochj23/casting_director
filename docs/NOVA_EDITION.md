@@ -46,6 +46,9 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/net.digitalnoise.casting
 | Games DB | Movies, book/actor caches, achievements, saves, settings and every AI call in schema `casting`; offline writes queue and sync later. DB badge in the header. |
 | Play log | Each production is a `play.sessions` row with events (greenlit, quote, released, game_over), so Nova can write about it. |
 | Stats | `GET /api/stats`: tokens, tok/s, latency and backend for the last calls. |
+| Advisors (phase 2) | After each casting the Studio Exec, Casting Agent and Director give a stance (approve / caution / oppose) and the odds it works. When anyone opposes you can **overrule** them or recast; overrules reach the critics. Stances and odds are house rules; an AI brain (role *advisors*) can write their lines. |
+| Production crisis | Before the cameras roll a crisis lands (walk-off, monsoon, bad test screening, tabloids, effects overrun, feud). Each choice has a cost and a hidden effect on the critics' score. |
+| Achievements | First Picture, Blockbuster, Critics' Darling, Razzie Night, Two Thumbs Up, Under Budget, Nobody You've Heard Of, Maverick, Crisis Manager — stored in the Games DB, shown on the premiere screen. |
 
 ## Security
 
