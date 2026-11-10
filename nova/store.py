@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS casting.ai_calls (id bigserial PRIMARY KEY, t timesta
   role text, backend text, model text, ok boolean, ms integer, tokens_in integer, tokens_out integer, error text);
 CREATE INDEX IF NOT EXISTS ai_calls_t_idx ON casting.ai_calls (t DESC);
 """),
+    # v2: the Nova Cluster Games screen reads AI calls and movies with the platform's read-only play_reader.
+    (2, """
+GRANT USAGE ON SCHEMA casting TO play_reader;
+GRANT SELECT ON casting.ai_calls, casting.movies TO play_reader;
+"""),
 ]
 
 
