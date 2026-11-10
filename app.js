@@ -16,13 +16,12 @@ import { initConstants } from './js/config/constants.js';
 import { setRandomDefaultBook } from './js/config/books.js';
 
 // Services
-import { initFirebase } from './js/services/firebaseService.js';
+import { initBackend, hideLogin } from './js/services/storeService.js';
 
 // UI Core
 import { showScreen, showLoading } from './js/ui/screenManager.js';
 import { initModal } from './js/ui/modalManager.js';
 import { showWelcomeScreen, hideWelcomeScreen, initWelcomeScreen, clearIntroTimers } from './js/ui/welcomeScreen.js';
-import { showLoginScreen, hideLoginScreen, initLoginScreen } from './js/ui/loginScreen.js';
 
 // Screens
 import { initScreen1, refreshRecentMovies } from './js/ui/screen1.js';
@@ -65,7 +64,7 @@ async function onAuthSuccess(user) {
     console.log("Auth success, user:", user.uid);
 
     // Hide login screen
-    hideLoginScreen();
+    await hideLogin();
 
     // Load recent movies after authentication
     await refreshRecentMovies();
@@ -116,18 +115,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeEventListeners();
 
     try {
-        // Initialize Firebase - sets up auth and listeners (synchronous)
-        const { auth } = initFirebase(onAuthSuccess, false);
-
-        // Initialize login screen with auth instance
-        if (auth) {
-            initLoginScreen(auth);
-            console.log('Login screen initialized with auth');
-        } else {
-            console.error('Auth not available for login screen');
-        }
+        // Firebase edition: auth + login screen. Nova edition: straight in (see js/services/storeService.js).
+        await initBackend(onAuthSuccess);
     } catch (error) {
-        console.error("Firebase initialization failed:", error);
+        console.error("Backend initialization failed:", error);
     }
 
     // Login screen is shown by default via HTML class

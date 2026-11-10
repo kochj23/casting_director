@@ -1,3 +1,9 @@
+> **This is a fork.** Casting Director was created by **[Austin Fonacier](https://github.com/austinrfnd)**
+> ([austinrfnd/casting_director](https://github.com/austinrfnd/casting_director)). The game, its design, its
+> prompts, its art and its 90s soul are his. This fork adds a **Nova edition** that runs on local AI and the Nova
+> Games DB; see [docs/NOVA_EDITION.md](docs/NOVA_EDITION.md). The original Firebase edition is unchanged and still
+> works exactly as Austin built it. All credit for the game goes to Austin — go star his repo.
+
 # Casting Director C:>
 
 A retro 90s DOS-style game where you play as a Hollywood casting director. Your mission: adapt best-selling books for the big screen and see if your casting choices lead to box office gold or critical disaster!

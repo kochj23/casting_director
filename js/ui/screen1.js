@@ -4,7 +4,7 @@
  */
 
 import { callGetBookInfo } from '../services/apiService.js';
-import { loadRecentMovies, displayRecentMovies } from '../services/firebaseService.js';
+import { loadRecentMovies, displayRecentMovies } from '../services/storeService.js';
 import { updateBookInfo, updateBudgets } from '../services/stateService.js';
 import { showScreen, showLoading } from './screenManager.js';
 import { showModal } from './modalManager.js';

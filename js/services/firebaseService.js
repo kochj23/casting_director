@@ -30,7 +30,7 @@ import {
 import { firebaseConfig, appId, initialAuthToken } from '../config/firebase.js';
 import { setFirebaseInstances, getState, getUserId, getDb } from './stateService.js';
 import { initFirestoreFunctions } from './apiService.js';
-import { formatCurrency } from '../utils/formatters.js';
+import { buildMovieRecord } from '../game/movieRecord.js';
 
 // ============================================================================
 // INITIALIZATION
@@ -149,46 +149,7 @@ export async function saveMovie(results) {
         throw new Error("Not connected to Firebase. Cannot save movie.");
     }
 
-    const movieData = {
-        directorId: userId,
-        bookName: state.bookName,
-        author: state.author,
-        bookPopularity: state.bookInfo.popularity,
-        movieBudget: state.movieBudget,
-        castList: state.castList,           // Array of cast objects
-        boxOffice: results.boxOffice,
-        awards: results.awards || [],       // Array of award strings
-        summary: results.summary,
-
-        // Platform reviews
-        imdbScore: results.imdbScore,
-        imdbReview: results.imdbReview,
-        imdbUsername: results.imdbUsername,
-        letterboxdScore: results.letterboxdScore,
-        letterboxdReview: results.letterboxdReview,
-        letterboxdUsername: results.letterboxdUsername,
-        rtCriticsScore: results.rtCriticsScore,
-        rtAudienceScore: results.rtAudienceScore,
-        rtReview: results.rtReview,
-        rtUsername: results.rtUsername,
-
-        // Overall game score
-        overallGameScore: results.overallGameScore,
-        scoreDescriptor: results.scoreDescriptor,
-
-        // Siskel & Ebert verdict
-        siskelReview: results.siskelReview,
-        siskelVerdict: results.siskelVerdict,
-        ebertReview: results.ebertReview,
-        ebertVerdict: results.ebertVerdict,
-        finalVerdict: results.finalVerdict,
-
-        // Individual casting scores
-        castingScores: results.castingScores || [],
-
-        version: 2,  // Version for backward compatibility
-        createdAt: new Date().toISOString()
-    };
+    const movieData = buildMovieRecord(results, state, userId);
 
     try {
         const moviesCollection = collection(db, `/artifacts/${appId}/public/data/movies`);
@@ -263,34 +224,4 @@ export async function getMovieById(movieId) {
     }
 }
 
-/**
- * Displays recent movies in the list element
- * @param {Array} movies - Array of movie objects
- * @param {HTMLElement} listElement - The UL element to populate
- * @param {function} onMovieClick - Callback when a movie is clicked
- */
-export function displayRecentMovies(movies, listElement, onMovieClick) {
-    if (!movies || movies.length === 0) {
-        listElement.innerHTML = '<li>No movies cast yet. Be the first!</li>';
-        return;
-    }
-
-    listElement.innerHTML = movies.map(movie => {
-        const boxOffice = formatCurrency(movie.boxOffice || 0);
-        const directorShort = movie.directorId ? movie.directorId.substring(0, 8) : 'unknown';
-
-        return `<li data-movie-id="${movie.id}">
-            <strong>${movie.bookName}</strong> by ${movie.author}<br>
-            Director: ${directorShort} | Box Office: ${boxOffice}
-        </li>`;
-    }).join('');
-
-    // Add click handlers
-    if (onMovieClick) {
-        listElement.querySelectorAll('li[data-movie-id]').forEach(li => {
-            li.addEventListener('click', () => {
-                onMovieClick(li.dataset.movieId);
-            });
-        });
-    }
-}
+export { displayRecentMovies } from '../ui/recentMovies.js';

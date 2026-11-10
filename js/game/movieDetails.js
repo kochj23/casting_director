@@ -3,7 +3,7 @@
  * Handles the movie details screen (screen5) display and deep linking
  */
 
-import { getMovieById } from '../services/firebaseService.js';
+import { getMovieById } from '../services/storeService.js';
 import { showScreen, showLoading } from '../ui/screenManager.js';
 import { showModal } from '../ui/modalManager.js';
 import { formatCurrency, formatLetterboxdStars, generateThumbIcon } from '../utils/formatters.js';

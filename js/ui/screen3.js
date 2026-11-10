@@ -5,7 +5,7 @@
 
 import { getState, getBookInfo, getCastList, getCastingBudget } from '../services/stateService.js';
 import { callGenerateMovieResults } from '../services/apiService.js';
-import { saveMovie } from '../services/firebaseService.js';
+import { saveMovie } from '../services/storeService.js';
 import { formatCurrency } from '../utils/formatters.js';
 import { showScreen, showLoading } from './screenManager.js';
 import { showModal } from './modalManager.js';

@@ -5,6 +5,8 @@
 
 import { CLOUD_FUNCTIONS, appId } from '../config/firebase.js';
 import { getDb } from './stateService.js';
+import { IS_NOVA } from '../config/edition.js';
+import { novaFetch } from './novaService.js';
 
 // Dynamic Firebase imports for browser environment
 let doc, getDoc, setDoc, serverTimestamp;
@@ -62,6 +64,9 @@ export function normalizeActorName(actorName) {
  * @throws {Error} If the API call fails
  */
 export async function callGetBookInfo(bookName, author) {
+    // Nova edition: the local server asks the analyst brain and caches in the Games DB.
+    if (IS_NOVA) return novaFetch('/api/getBookInfo', { bookName, author });
+
     const db = getDb();
     const cacheKey = normalizeBookKey(bookName, author);
     const cacheDocRef = doc(db, `artifacts/${appId}/public/data/bookCache`, cacheKey);
@@ -139,6 +144,8 @@ export async function callGetBookInfo(bookName, author) {
  * @throws {Error} If the API call fails
  */
 export async function callGetActorFee(actorName) {
+    if (IS_NOVA) return novaFetch('/api/getActorFee', { actorName });
+
     const db = getDb();
     const normalizedName = normalizeActorName(actorName);
     const cacheDocRef = doc(db, `artifacts/${appId}/public/data/actorCache`, normalizedName);
@@ -216,9 +223,14 @@ export async function callGetActorFee(actorName) {
 export async function callGenerateMovieResults(movieData) {
     // Create AbortController with 3-minute timeout (Gemini Pro can take 1-2 minutes)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
+    const timeoutId = setTimeout(() => controller.abort(), IS_NOVA ? 360000 : 180000); // 3 min (Nova: 6, local models)
 
     try {
+        if (IS_NOVA) {
+            const result = await novaFetch('/api/generateMovieResults', movieData, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            return result;
+        }
         const response = await fetch(CLOUD_FUNCTIONS.generateMovieResults, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
